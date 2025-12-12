@@ -1,0 +1,4 @@
+venv/
+iot-server/node_modules/**
+cam-server/__pycache__/**
+*.log

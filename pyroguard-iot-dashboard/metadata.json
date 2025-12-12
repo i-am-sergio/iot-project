@@ -1,0 +1,5 @@
+{
+  "name": "PyroGuard IoT Dashboard",
+  "description": "A real-time IoT dashboard for fire detection using sensor data fusion and AI analysis.",
+  "requestFramePermissions": []
+}

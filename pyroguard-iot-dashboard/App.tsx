@@ -8,9 +8,8 @@ import {
 import {
   DEFAULT_THRESHOLDS,
   MAX_HISTORY_POINTS,
-  SECURITY_CAM_STREAM_URL
+  SECURITY_CAM_STREAM_URL,
 } from './constants';
-import { analyzeFireRisk } from './services/geminiService';
 import { SensorChart } from './components/SensorChart';
 import { MediaPanel } from './components/MediaPanel';
 import { SystemLogs } from './components/SystemLogs';
@@ -21,9 +20,12 @@ import {
   Activity,
   Settings,
   Flame,
-  CloudFog
+  CloudFog,
+  Camera,  // Añade esta importación
+  CameraOff  // Añade esta importación
 } from 'lucide-react';
 import { connectToSensors, disconnectSensors } from "./services/sensorsService";
+import { connectToAlerts, disconnectAlerts, AlertCallbackData } from "./services/alertsService";
 
 export default function App() {
   // --- State ---
@@ -37,6 +39,9 @@ export default function App() {
 
   const [temperature, setTemperature] = useState(18);
   const [smokeLevel, setSmokeLevel] = useState(2);
+  
+  // IMPORTANTE: Cambia el estado inicial a false
+  const [cameraActive, setCameraActive] = useState(false);
 
   // --- Helpers ---
   const addLog = useCallback((message: string, type: SystemLog['type'] = 'info') => {
@@ -53,51 +58,7 @@ export default function App() {
   const addLogRef = useRef(addLog);
   addLogRef.current = addLog; // Mantener actualizado
 
-
-  // --- Sensor Simulation Loop ---
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     const now = Date.now();
-
-  //     // Generate Data
-  //     // If simulateFireMode is true, ramp up Temp and Smoke
-  //     let temp, smoke;
-
-  //     if (simulateFireMode) {
-  //        temp = 60 + Math.random() * 30; // 60-90 C
-  //        smoke = 60 + Math.random() * 40; // 60-100 (High Smoke)
-  //     } else {
-  //        temp = 20 + Math.random() * 5; // 20-25 C
-  //        smoke = Math.random() * 15; // 0-15 (Low Smoke)
-  //     }
-
-  //     const newData: SensorData = {
-  //       timestamp: now,
-  //       temperature: temp,
-  //       smokeLevel: smoke
-  //     };
-
-  //     setSensorHistory(prev => {
-  //       const updated = [...prev, newData];
-  //       if (updated.length > MAX_HISTORY_POINTS) return updated.slice(updated.length - MAX_HISTORY_POINTS);
-  //       return updated;
-  //     });
-
-  //     // Threshold Logic (Only if not already confirmed or analyzing)
-  //     if (statusRef.current === SystemStatus.NORMAL) {
-  //       // Trigger if Temp exceeds Max OR Smoke exceeds Max
-  //       if (newData.temperature > thresholds.temperature || newData.smokeLevel > thresholds.smokeLevel) {
-  //         triggerRiskProtocol(newData);
-  //       }
-  //     }
-
-  //   }, 1000);
-
-  //   return () => clearInterval(interval);
-  // }, [simulateFireMode, thresholds]);
-
-  // Efecto para MQTT
-  // Efecto para MQTT
+  // Efecto para MQTT de sensores
   useEffect(() => {
     connectToSensors((sensor) => {
       console.log("MQTT payload:", sensor);
@@ -108,7 +69,7 @@ export default function App() {
 
       // Crear un nuevo dato para el historial
       const newData: SensorData = {
-        timestamp: new Date(sensor.timestamp).getTime(), // Convertir ISO a timestamp
+        timestamp: new Date(sensor.timestamp).getTime(),
         temperature: sensor.temperature,
         smokeLevel: sensor.gas
       };
@@ -143,9 +104,50 @@ export default function App() {
     });
 
     return () => disconnectSensors();
-  }, [thresholds]); // Agregar thresholds a las dependencias
-  // --- Core Logic Flows ---
+  }, [thresholds]);
 
+  // Efecto para conectar a las alertas - VERSIÓN MODIFICADA
+  useEffect(() => {
+    const handleAlert = (alert: AlertCallbackData) => {
+      console.log("🚨 Alerta procesada:", alert);
+      
+      // Agregar log de la alerta
+      const timeString = new Date(alert.timestamp).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      
+      const logMessage = `[${alert.deviceId}] [${timeString}] ALERTA ${alert.alertLevel}: ${alert.message} (Temp: ${alert.temperature.toFixed(1)}°C, Gas: ${alert.gasLevel})`;
+      
+      addLogRef.current(logMessage, alert.alertLevel >= 2 ? 'alert' : 'warning');
+      
+      // IMPORTANTE: Activar cámara automáticamente SOLO cuando llega alerta
+      if (!cameraActive) {
+        setCameraActive(true);
+        addLogRef.current("Cámara activada automáticamente por alerta del sistema", 'info');
+      }
+      
+      // Si la alerta es de nivel alto, activar protocolo de riesgo
+      if (alert.alertLevel >= 2 && statusRef.current === SystemStatus.NORMAL) {
+        const alertData: SensorData = {
+          timestamp: new Date(alert.timestamp).getTime(),
+          temperature: alert.temperature,
+          smokeLevel: alert.gasLevel
+        };
+        triggerRiskProtocol(alertData);
+      }
+    };
+
+    // Conectar al servicio de alertas
+    connectToAlerts(handleAlert);
+
+    return () => {
+      disconnectAlerts();
+    };
+  }, [cameraActive]); // Agregar cameraActive a las dependencias
+
+  // --- Core Logic Flows ---
   const triggerRiskProtocol = (data: SensorData) => {
     setStatus(SystemStatus.RISK);
     const reason = data.temperature > thresholds.temperature
@@ -153,54 +155,58 @@ export default function App() {
       : `Smoke Detected (${data.smokeLevel.toFixed(0)})`;
 
     addLog(`RISK DETECTED: ${reason}`, 'warning');
-
-    // Simulate Server requesting Mobile App
+    // Send AI Verification  
     setTimeout(() => {
-      requestMobileCapture(data);
-    }, 1000);
+      requestAIServerVerification(data);
+    }, 500);
   };
 
-  const requestMobileCapture = async (data: SensorData) => {
-    addLog("Requesting Smartphone Capture (Photo + Audio)...", 'info');
+  const requestAIServerVerification = async (data: SensorData) => {
+    addLog("Send Capture (Photo + Audio)...", 'info');
     setIsSimulatingCapture(true);
 
-    // Simulate network delay and capture time
     setTimeout(async () => {
       setIsSimulatingCapture(false);
       addLog("Media Received. Initiating Deep Learning Analysis...", 'info');
       setStatus(SystemStatus.ANALYZING);
 
-      // Call Gemini Service
-      const result = await analyzeFireRisk(data, true, true);
+      // const result = await analyzeFireRisk(data, true, true);
+      // DEBERIA IR AQUÍ LA LLAMADA AL SERVICIO DE AI-SERVER en lugar de analyzeFireRisk
+      // const result = await verificationRiskWithAIServer(data, true, true); ...
+      
+      // setAiAnalysis(result.reasoning);
 
-      setAiAnalysis(result.reasoning);
-
-      if (result.isFire) {
-        setStatus(SystemStatus.CONFIRMED);
-        addLog(`FIRE CONFIRMED: ${result.reasoning}`, 'alert');
-        addLog("Alerts sent to WhatsApp, Telegram, Email.", 'success');
-      } else {
-        setStatus(SystemStatus.NORMAL); // Or keep at risk? Resetting for demo flow.
-        addLog(`Analysis Negative: ${result.reasoning}`, 'success');
-      }
-
+      // if (result.isFire) {
+      //   setStatus(SystemStatus.CONFIRMED);
+      //   addLog(`FIRE CONFIRMED: ${result.reasoning}`, 'alert');
+      //   addLog("Alerts sent to WhatsApp, Telegram, Email.", 'success');
+      // } else {
+      //   setStatus(SystemStatus.NORMAL);
+      //   addLog(`Analysis Negative: ${result.reasoning}`, 'success');
+      // }
     }, 3000);
+  };
+
+  // Función para activar/desactivar cámara manualmente
+  const toggleCamera = () => {
+    const newState = !cameraActive;
+    setCameraActive(newState);
+    addLog(`Cámara ${newState ? 'activada' : 'desactivada'} manualmente`, 'info');
   };
 
   const handleReset = () => {
     setSimulateFireMode(false);
     setStatus(SystemStatus.NORMAL);
     setAiAnalysis(null);
+    setCameraActive(false); // También desactiva la cámara al resetear
     addLog("System manually reset.", 'info');
   };
 
-  // --- UI Components ---
-
-  const latestData = sensorHistory[sensorHistory.length - 1] || { temperature: 0, smokeLevel: 0 };
+  // Determinar la URL del stream basada en el estado de la cámara
+  const streamUrl = cameraActive ? SECURITY_CAM_STREAM_URL : null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 font-sans">
-
       {/* Header */}
       <header className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -211,7 +217,25 @@ export default function App() {
           <p className="text-slate-400 text-sm mt-1">Hybrid Fire Detection System • Explorer Kit + Smartphone AI</p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Indicador y control de cámara - AÑADIR ESTO */}
+          <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-2 rounded-lg border border-slate-700">
+            <div className={`w-2 h-2 rounded-full ${cameraActive ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`} />
+            <span className="text-sm text-slate-300">
+              {cameraActive ? 'Cámara ACTIVA' : 'Cámara INACTIVA'}
+            </span>
+            <button
+              onClick={toggleCamera}
+              className={`ml-2 px-2 py-1 rounded text-xs ${cameraActive 
+                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+              } transition-colors`}
+              title={cameraActive ? 'Desactivar cámara' : 'Activar cámara'}
+            >
+              {cameraActive ? <CameraOff className="w-3 h-3" /> : <Camera className="w-3 h-3" />}
+            </button>
+          </div>
+
           <button
             onClick={() => setSimulateFireMode(!simulateFireMode)}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${simulateFireMode
@@ -237,10 +261,8 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-
         {/* LEFT COLUMN: SENSORS (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
-
           {/* Metrics Cards */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
@@ -341,13 +363,12 @@ export default function App() {
 
         {/* RIGHT COLUMN: STATUS & MEDIA (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
-
           {/* Media Feed */}
           <div className="h-auto min-h-[400px]">
             <MediaPanel
               status={status}
               isSimulatingCapture={isSimulatingCapture}
-              streamUrl={SECURITY_CAM_STREAM_URL}
+              streamUrl={streamUrl} 
             />
           </div>
 
@@ -378,7 +399,6 @@ export default function App() {
               Reset System State
             </button>
           )}
-
         </div>
       </main>
     </div>

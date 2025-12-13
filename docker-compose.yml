@@ -6,5 +6,6 @@ services:
     restart: always
     ports:
       - "1883:1883" # Puerto para dispositivos IoT.
+      - "9001:9001" # Puerto WebSocket.
     volumes:
       - ./iot-broker/mosquitto.conf:/mosquitto/config/mosquitto.conf

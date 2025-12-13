@@ -1,0 +1,11 @@
+# MQTT Broker
+
+- Este comando permite `suscribirse` al tópico "alerts" 
+```sh
+mosquitto_sub -h localhost -p 1883 -t "alerts" -v
+```
+
+- Este comando permite `publicar` un mensaje en el tópico "alerts"
+```sh
+mosquitto_pub -h localhost -p 1883 -t "alerts" -m '{"temperature": 38.5, "timestamp": "2024-01-15T10:31:00Z", "message": "High temperature detected"}'
+```

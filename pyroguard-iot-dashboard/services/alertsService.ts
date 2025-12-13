@@ -1,5 +1,6 @@
 // services/alertsService.ts
 import mqtt, { MqttClient } from "mqtt"; 
+import { BROKER_URL } from "../constants";
 
 let client: MqttClient | null = null;
 
@@ -44,7 +45,7 @@ const mapAlertPayload = (raw: AlertPayload): AlertCallbackData => {
 export const connectToAlerts = (
   onAlert: (data: AlertCallbackData) => void
 ) => {
-  client = mqtt.connect("ws://localhost:9001", {
+  client = mqtt.connect(BROKER_URL, {
     clientId: 'react_alerts_' + Math.random().toString(16).substring(2, 8),
     keepalive: 60,
   });

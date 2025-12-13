@@ -13,3 +13,5 @@ export const IMG_PLACEHOLDER_FIRE = "https://picsum.photos/id/56/800/600"; // Fi
 export const GEMINI_MODEL = "gemini-2.5-flash";
 
 export const SECURITY_CAM_STREAM_URL = import.meta.env.VITE_STREAM_URL || "http://<your-ip-address>:8080/video";
+export const AI_SERVER_URL = import.meta.env.VITE_AI_SERVER || "http://localhost:5002";
+export const BROKER_URL = import.meta.env.VITE_BROKER_URL || "ws://localhost:9001";

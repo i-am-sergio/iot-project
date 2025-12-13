@@ -2,9 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Mic, Volume2, WifiOff, Aperture, Loader2 } from 'lucide-react';
 import { SystemStatus } from '../types';
-import { IMG_PLACEHOLDER_NORMAL, IMG_PLACEHOLDER_FIRE } from '../constants';
+import { IMG_PLACEHOLDER_NORMAL, IMG_PLACEHOLDER_FIRE, AI_SERVER_URL } from '../constants';
 import fireSoundTest from '../assets/fire_sound_test.wav';
-
 
 interface MediaPanelProps {
   status: SystemStatus;
@@ -131,7 +130,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
 
       // 4. Enviar al endpoint FastAPI
       console.log("Enviando al AI server...");
-      const response = await fetch('http://localhost:5002/verify', {
+      const response = await fetch(`${AI_SERVER_URL}/verify`, {
         method: 'POST',
         body: formData,
         // Nota: NO establecer Content-Type manualmente, 

@@ -1,5 +1,6 @@
 // services/sensorsService.ts
 import mqtt, { MqttClient } from "mqtt"; 
+import { BROKER_URL } from "../constants";
 let client: MqttClient | null = null;
 
 interface RawSensorPayload {
@@ -29,7 +30,7 @@ const mapRawToSensorPayload = (raw: RawSensorPayload): SensorPayload => {
 export const connectToSensors = (
   onMessage: (data: SensorPayload) => void
 ) => {
-  client = mqtt.connect("ws://localhost:9001", {
+  client = mqtt.connect(BROKER_URL, {
      clientId: 'react_client_' + Math.random().toString(16).substring(2, 8),
      keepalive: 60,
   });

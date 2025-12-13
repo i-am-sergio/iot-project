@@ -1,0 +1,10 @@
+services:
+  # Broker MQTT para recibir datos de los sensores.
+  mqtt-broker:
+    image: eclipse-mosquitto:latest
+    container_name: mqtt_broker
+    restart: always
+    ports:
+      - "1883:1883" # Puerto para dispositivos IoT.
+    volumes:
+      - ./iot-broker/mosquitto.conf:/mosquitto/config/mosquitto.conf

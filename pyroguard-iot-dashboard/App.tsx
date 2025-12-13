@@ -7,7 +7,8 @@ import {
 } from './types';
 import {
   DEFAULT_THRESHOLDS,
-  MAX_HISTORY_POINTS
+  MAX_HISTORY_POINTS,
+  SECURITY_CAM_STREAM_URL
 } from './constants';
 import { analyzeFireRisk } from './services/geminiService';
 import { SensorChart } from './components/SensorChart';
@@ -23,8 +24,6 @@ import {
   CloudFog
 } from 'lucide-react';
 import { connectToSensors, disconnectSensors } from "./services/sensorsService";
-
-const streamUrl = "http://<your-ip-address>:8080/video";
 
 export default function App() {
   // --- State ---
@@ -348,7 +347,7 @@ export default function App() {
             <MediaPanel
               status={status}
               isSimulatingCapture={isSimulatingCapture}
-              streamUrl={streamUrl}
+              streamUrl={SECURITY_CAM_STREAM_URL}
             />
           </div>
 

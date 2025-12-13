@@ -99,7 +99,8 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
            ) : (
              <WifiOff className="w-3 h-3 text-slate-400"/>
            )}
-          Device: Galaxy S23 (Mock)
+          {/* Device: Galaxy S23 (Mock) */}
+           Device: TP-Link Security Cam
         </span>
       </div>
 

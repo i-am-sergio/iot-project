@@ -1,0 +1,5 @@
+dataset/
+*.json
+*.ipynb
+__pycache__/
+data/

@@ -1,0 +1,6 @@
+dataset/
+*.json
+*.ipynb
+__pycache__/
+data/
+grafico.py

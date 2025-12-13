@@ -1,0 +1,8 @@
+{
+  "name": "Sentinel Alert Mobile",
+  "description": "Código fuente React Native para aplicación móvil. Copiar a entorno local Expo.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

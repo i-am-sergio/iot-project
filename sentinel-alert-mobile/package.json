@@ -1,0 +1,35 @@
+{
+  "name": "sentinel-alert-mobile",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "expo": "^54.0.29",
+    "expo-av": "^16.0.8",
+    "expo-build-properties": "~1.0.10",
+    "expo-camera": "^17.0.10",
+    "expo-constants": "^18.0.12",
+    "expo-dev-client": "~6.0.20",
+    "expo-file-system": "^19.0.21",
+    "expo-font": "~14.0.10",
+    "expo-keep-awake": "^15.0.8",
+    "expo-notifications": "^0.32.15",
+    "mqtt": "^5.14.1",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "typescript": "~5.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "~19.1.10",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.9.2",
+    "vite": "^6.2.0"
+  }
+}

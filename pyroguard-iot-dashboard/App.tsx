@@ -36,10 +36,8 @@ export default function App() {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [simulateFireMode, setSimulateFireMode] = useState(false);
 
-  const [temperature, setTemperature] = useState(0);
-  // Refs for logic that shouldn't trigger re-renders or dependencies issues
-  const statusRef = useRef(status);
-  statusRef.current = status;
+  const [temperature, setTemperature] = useState(18);
+  const [smokeLevel, setSmokeLevel] = useState(2);
 
   // --- Helpers ---
   const addLog = useCallback((message: string, type: SystemLog['type'] = 'info') => {
@@ -48,6 +46,14 @@ export default function App() {
       { id: Math.random().toString(36), timestamp: new Date(), message, type }
     ]);
   }, []);
+
+  // Refs for logic that shouldn't trigger re-renders or dependencies issues
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
+  const addLogRef = useRef(addLog);
+  addLogRef.current = addLog; // Mantener actualizado
+
 
   // --- Sensor Simulation Loop ---
   useEffect(() => {
@@ -91,14 +97,28 @@ export default function App() {
     return () => clearInterval(interval);
   }, [simulateFireMode, thresholds]);
 
-  useEffect(() => {
-    connectToSensors((sensor) => {
-      console.log("MQTT payload:", sensor);
-      setTemperature(sensor.temperature);
+  // Efecto para MQTT
+useEffect(() => {
+  connectToSensors((sensor) => {
+    console.log("MQTT payload:", sensor);
+    setTemperature(sensor.temperature);
+    setSmokeLevel(sensor.gas);
+    
+    // Formato: [esp32-01] [10:30:25] 23.8 0
+    const timeString = new Date(sensor.timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
     });
+    
+    const logMessage = `[${sensor.deviceId}] [${timeString}] ${sensor.temperature.toFixed(1)} ${sensor.gas.toFixed(0)}`;
+    
+    // Usar la función actual a través del ref
+    addLogRef.current(logMessage, 'info');
+  });
 
-    return () => disconnectSensors();
-  }, []);
+  return () => disconnectSensors();
+}, []);
   
   // --- Core Logic Flows ---
 
@@ -219,7 +239,8 @@ export default function App() {
                 <span className="text-xs uppercase font-bold">Smoke Density</span>
               </div>
               <div className={`text-3xl font-mono font-bold ${latestData.smokeLevel > thresholds.smokeLevel ? 'text-orange-400' : 'text-white'}`}>
-                {latestData.smokeLevel.toFixed(0)}
+                {/* {latestData.smokeLevel.toFixed(0)} */}
+                {smokeLevel}
               </div>
               <div className="text-xs text-slate-500 mt-1">Threshold: &gt;{thresholds.smokeLevel} (0-100)</div>
             </div>
@@ -312,7 +333,7 @@ export default function App() {
           )}
 
           {/* System Logs */}
-          <div className="flex-1 min-h-[200px]">
+          <div className="flex-1 min-h-[100px]">
             <SystemLogs logs={logs} />
           </div>
 

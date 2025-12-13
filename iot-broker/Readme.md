@@ -1,5 +1,10 @@
 # MQTT Broker
 
+- Iniciar broker MQTT usando Docker Compose:
+```sh
+docker-compose up
+```
+- Abrir otra terminal
 - Este comando permite `suscribirse` al tópico "alerts" 
 ```sh
 mosquitto_sub -h localhost -p 1883 -t "alerts" -v

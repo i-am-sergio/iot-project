@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  SystemStatus, 
-  SensorData, 
-  Thresholds, 
-  SystemLog 
+import {
+  SystemStatus,
+  SensorData,
+  Thresholds,
+  SystemLog
 } from './types';
-import { 
-  DEFAULT_THRESHOLDS, 
-  MAX_HISTORY_POINTS 
+import {
+  DEFAULT_THRESHOLDS,
+  MAX_HISTORY_POINTS
 } from './constants';
 import { analyzeFireRisk } from './services/geminiService';
 import { SensorChart } from './components/SensorChart';
 import { MediaPanel } from './components/MediaPanel';
 import { SystemLogs } from './components/SystemLogs';
-import { 
-  AlertTriangle, 
-  ShieldCheck, 
-  Thermometer, 
-  Activity, 
+import {
+  AlertTriangle,
+  ShieldCheck,
+  Thermometer,
+  Activity,
   Settings,
   Flame,
   CloudFog
@@ -42,7 +42,7 @@ export default function App() {
   // --- Helpers ---
   const addLog = useCallback((message: string, type: SystemLog['type'] = 'info') => {
     setLogs(prev => [
-      ...prev, 
+      ...prev,
       { id: Math.random().toString(36), timestamp: new Date(), message, type }
     ]);
   }, []);
@@ -56,80 +56,105 @@ export default function App() {
 
 
   // --- Sensor Simulation Loop ---
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     const now = Date.now();
+
+  //     // Generate Data
+  //     // If simulateFireMode is true, ramp up Temp and Smoke
+  //     let temp, smoke;
+
+  //     if (simulateFireMode) {
+  //        temp = 60 + Math.random() * 30; // 60-90 C
+  //        smoke = 60 + Math.random() * 40; // 60-100 (High Smoke)
+  //     } else {
+  //        temp = 20 + Math.random() * 5; // 20-25 C
+  //        smoke = Math.random() * 15; // 0-15 (Low Smoke)
+  //     }
+
+  //     const newData: SensorData = {
+  //       timestamp: now,
+  //       temperature: temp,
+  //       smokeLevel: smoke
+  //     };
+
+  //     setSensorHistory(prev => {
+  //       const updated = [...prev, newData];
+  //       if (updated.length > MAX_HISTORY_POINTS) return updated.slice(updated.length - MAX_HISTORY_POINTS);
+  //       return updated;
+  //     });
+
+  //     // Threshold Logic (Only if not already confirmed or analyzing)
+  //     if (statusRef.current === SystemStatus.NORMAL) {
+  //       // Trigger if Temp exceeds Max OR Smoke exceeds Max
+  //       if (newData.temperature > thresholds.temperature || newData.smokeLevel > thresholds.smokeLevel) {
+  //         triggerRiskProtocol(newData);
+  //       }
+  //     }
+
+  //   }, 1000);
+
+  //   return () => clearInterval(interval);
+  // }, [simulateFireMode, thresholds]);
+
+  // Efecto para MQTT
+  // Efecto para MQTT
   useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      
-      // Generate Data
-      // If simulateFireMode is true, ramp up Temp and Smoke
-      let temp, smoke;
+    connectToSensors((sensor) => {
+      console.log("MQTT payload:", sensor);
 
-      if (simulateFireMode) {
-         temp = 60 + Math.random() * 30; // 60-90 C
-         smoke = 60 + Math.random() * 40; // 60-100 (High Smoke)
-      } else {
-         temp = 20 + Math.random() * 5; // 20-25 C
-         smoke = Math.random() * 15; // 0-15 (Low Smoke)
-      }
+      // Actualizar los valores inmediatos
+      setTemperature(sensor.temperature);
+      setSmokeLevel(sensor.gas);
 
+      // Crear un nuevo dato para el historial
       const newData: SensorData = {
-        timestamp: now,
-        temperature: temp,
-        smokeLevel: smoke
+        timestamp: new Date(sensor.timestamp).getTime(), // Convertir ISO a timestamp
+        temperature: sensor.temperature,
+        smokeLevel: sensor.gas
       };
 
+      // Actualizar el historial
       setSensorHistory(prev => {
         const updated = [...prev, newData];
-        if (updated.length > MAX_HISTORY_POINTS) return updated.slice(updated.length - MAX_HISTORY_POINTS);
+        if (updated.length > MAX_HISTORY_POINTS) {
+          return updated.slice(updated.length - MAX_HISTORY_POINTS);
+        }
         return updated;
       });
 
-      // Threshold Logic (Only if not already confirmed or analyzing)
+      // Lógica de umbral con datos reales
       if (statusRef.current === SystemStatus.NORMAL) {
-        // Trigger if Temp exceeds Max OR Smoke exceeds Max
-        if (newData.temperature > thresholds.temperature || newData.smokeLevel > thresholds.smokeLevel) {
+        if (sensor.temperature > thresholds.temperature || sensor.gas > thresholds.smokeLevel) {
           triggerRiskProtocol(newData);
         }
       }
 
-    }, 1000);
+      // Formato: [esp32-01] [10:30:25] 23.8 0
+      const timeString = new Date(sensor.timestamp).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
 
-    return () => clearInterval(interval);
-  }, [simulateFireMode, thresholds]);
+      const logMessage = `[${sensor.deviceId}] [${timeString}] ${sensor.temperature.toFixed(1)} ${sensor.gas.toFixed(0)}`;
 
-  // Efecto para MQTT
-useEffect(() => {
-  connectToSensors((sensor) => {
-    console.log("MQTT payload:", sensor);
-    setTemperature(sensor.temperature);
-    setSmokeLevel(sensor.gas);
-    
-    // Formato: [esp32-01] [10:30:25] 23.8 0
-    const timeString = new Date(sensor.timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit' 
+      // Usar la función actual a través del ref
+      addLogRef.current(logMessage, 'info');
     });
-    
-    const logMessage = `[${sensor.deviceId}] [${timeString}] ${sensor.temperature.toFixed(1)} ${sensor.gas.toFixed(0)}`;
-    
-    // Usar la función actual a través del ref
-    addLogRef.current(logMessage, 'info');
-  });
 
-  return () => disconnectSensors();
-}, []);
-  
+    return () => disconnectSensors();
+  }, [thresholds]); // Agregar thresholds a las dependencias
   // --- Core Logic Flows ---
 
   const triggerRiskProtocol = (data: SensorData) => {
     setStatus(SystemStatus.RISK);
-    const reason = data.temperature > thresholds.temperature 
-      ? `Temp High (${data.temperature.toFixed(1)}°C)` 
+    const reason = data.temperature > thresholds.temperature
+      ? `Temp High (${data.temperature.toFixed(1)}°C)`
       : `Smoke Detected (${data.smokeLevel.toFixed(0)})`;
 
     addLog(`RISK DETECTED: ${reason}`, 'warning');
-    
+
     // Simulate Server requesting Mobile App
     setTimeout(() => {
       requestMobileCapture(data);
@@ -139,18 +164,18 @@ useEffect(() => {
   const requestMobileCapture = async (data: SensorData) => {
     addLog("Requesting Smartphone Capture (Photo + Audio)...", 'info');
     setIsSimulatingCapture(true);
-    
+
     // Simulate network delay and capture time
     setTimeout(async () => {
       setIsSimulatingCapture(false);
       addLog("Media Received. Initiating Deep Learning Analysis...", 'info');
       setStatus(SystemStatus.ANALYZING);
-      
+
       // Call Gemini Service
       const result = await analyzeFireRisk(data, true, true);
-      
+
       setAiAnalysis(result.reasoning);
-      
+
       if (result.isFire) {
         setStatus(SystemStatus.CONFIRMED);
         addLog(`FIRE CONFIRMED: ${result.reasoning}`, 'alert');
@@ -159,7 +184,7 @@ useEffect(() => {
         setStatus(SystemStatus.NORMAL); // Or keep at risk? Resetting for demo flow.
         addLog(`Analysis Negative: ${result.reasoning}`, 'success');
       }
-      
+
     }, 3000);
   };
 
@@ -176,7 +201,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 font-sans">
-      
+
       {/* Header */}
       <header className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -186,25 +211,23 @@ useEffect(() => {
           </h1>
           <p className="text-slate-400 text-sm mt-1">Hybrid Fire Detection System • Explorer Kit + Smartphone AI</p>
         </div>
-        
+
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={() => setSimulateFireMode(!simulateFireMode)}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-              simulateFireMode 
-                ? 'bg-red-500/20 text-red-400 border border-red-500/50' 
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${simulateFireMode
+                ? 'bg-red-500/20 text-red-400 border border-red-500/50'
                 : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
-            }`}
+              }`}
           >
             {simulateFireMode ? 'Stop Simulation' : 'Simulate Fire Event'}
           </button>
-          
-          <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 border shadow-lg ${
-            status === SystemStatus.NORMAL ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' :
-            status === SystemStatus.RISK ? 'bg-amber-500/10 border-amber-500/50 text-amber-400 animate-pulse' :
-            status === SystemStatus.ANALYZING ? 'bg-blue-500/10 border-blue-500/50 text-blue-400' :
-            'bg-red-600 text-white animate-bounce border-red-500'
-          }`}>
+
+          <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 border shadow-lg ${status === SystemStatus.NORMAL ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' :
+              status === SystemStatus.RISK ? 'bg-amber-500/10 border-amber-500/50 text-amber-400 animate-pulse' :
+                status === SystemStatus.ANALYZING ? 'bg-blue-500/10 border-blue-500/50 text-blue-400' :
+                  'bg-red-600 text-white animate-bounce border-red-500'
+            }`}>
             {status === SystemStatus.NORMAL && <ShieldCheck className="w-5 h-5" />}
             {status === SystemStatus.RISK && <AlertTriangle className="w-5 h-5" />}
             {status === SystemStatus.ANALYZING && <Activity className="w-5 h-5 animate-spin" />}
@@ -215,10 +238,10 @@ useEffect(() => {
       </header>
 
       <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* LEFT COLUMN: SENSORS (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
-          
+
           {/* Metrics Cards */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
@@ -226,41 +249,51 @@ useEffect(() => {
                 <Thermometer className="w-4 h-4" />
                 <span className="text-xs uppercase font-bold">Temperature</span>
               </div>
-              <div className={`text-3xl font-mono font-bold ${latestData.temperature > thresholds.temperature ? 'text-red-400' : 'text-white'}`}>
-                {/* {latestData.temperature.toFixed(1)}°C */}
-                {temperature}°C
+              <div className={`text-3xl font-mono font-bold ${temperature > thresholds.temperature ? 'text-red-400' : 'text-white'
+                }`}>
+                {temperature.toFixed(1)}°C
               </div>
-              <div className="text-xs text-slate-500 mt-1">Threshold: &gt;{thresholds.temperature}°C</div>
+              <div className="text-xs text-slate-500 mt-1">
+                Threshold: &gt;{thresholds.temperature}°C
+                {temperature > thresholds.temperature && (
+                  <span className="text-red-400 ml-2">⚠️ ALERT</span>
+                )}
+              </div>
             </div>
-            
-             <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+
+            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
               <div className="flex items-center gap-2 text-slate-400 mb-2">
                 <CloudFog className="w-4 h-4" />
                 <span className="text-xs uppercase font-bold">Smoke Density</span>
               </div>
-              <div className={`text-3xl font-mono font-bold ${latestData.smokeLevel > thresholds.smokeLevel ? 'text-orange-400' : 'text-white'}`}>
-                {/* {latestData.smokeLevel.toFixed(0)} */}
-                {smokeLevel}
+              <div className={`text-3xl font-mono font-bold ${smokeLevel > thresholds.smokeLevel ? 'text-orange-400' : 'text-white'
+                }`}>
+                {smokeLevel.toFixed(0)}
               </div>
-              <div className="text-xs text-slate-500 mt-1">Threshold: &gt;{thresholds.smokeLevel} (0-100)</div>
+              <div className="text-xs text-slate-500 mt-1">
+                Threshold: &gt;{thresholds.smokeLevel} (0-100)
+                {smokeLevel > thresholds.smokeLevel && (
+                  <span className="text-orange-400 ml-2">⚠️ ALERT</span>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Charts */}
           <div className="space-y-4">
-            <SensorChart 
-              data={sensorHistory} 
-              dataKey="temperature" 
-              color="#f43f5e" 
-              threshold={thresholds.temperature} 
+            <SensorChart
+              data={sensorHistory}
+              dataKey="temperature"
+              color="#f43f5e"
+              threshold={thresholds.temperature}
               label="Temperature History"
               unit="°C"
             />
-            <SensorChart 
-              data={sensorHistory} 
-              dataKey="smokeLevel" 
-              color="#fb923c" 
-              threshold={thresholds.smokeLevel} 
+            <SensorChart
+              data={sensorHistory}
+              dataKey="smokeLevel"
+              color="#fb923c"
+              threshold={thresholds.smokeLevel}
               label="Smoke Density History"
               unit=""
             />
@@ -275,11 +308,11 @@ useEffect(() => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Max Temperature Trigger (°C)</label>
-                <input 
-                  type="range" 
-                  min="30" max="100" 
+                <input
+                  type="range"
+                  min="30" max="100"
                   value={thresholds.temperature}
-                  onChange={(e) => setThresholds({...thresholds, temperature: Number(e.target.value)})}
+                  onChange={(e) => setThresholds({ ...thresholds, temperature: Number(e.target.value) })}
                   className="w-full accent-rose-500 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
                 />
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
@@ -290,11 +323,11 @@ useEffect(() => {
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Smoke Threshold (0-100)</label>
-                <input 
-                  type="range" 
+                <input
+                  type="range"
                   min="0" max="100" step="5"
                   value={thresholds.smokeLevel}
-                  onChange={(e) => setThresholds({...thresholds, smokeLevel: Number(e.target.value)})}
+                  onChange={(e) => setThresholds({ ...thresholds, smokeLevel: Number(e.target.value) })}
                   className="w-full accent-orange-500 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
                 />
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
@@ -309,11 +342,11 @@ useEffect(() => {
 
         {/* RIGHT COLUMN: STATUS & MEDIA (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
-          
+
           {/* Media Feed */}
           <div className="h-auto min-h-[400px]">
-            <MediaPanel 
-              status={status} 
+            <MediaPanel
+              status={status}
               isSimulatingCapture={isSimulatingCapture}
               streamUrl={streamUrl}
             />
@@ -339,7 +372,7 @@ useEffect(() => {
 
           {/* Reset Button (Only visible if not normal) */}
           {status !== SystemStatus.NORMAL && (
-            <button 
+            <button
               onClick={handleReset}
               className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 rounded-xl transition-colors font-medium"
             >

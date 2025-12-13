@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { connectToSensors, disconnectSensors } from "./services/sensorsService";
 
+const streamUrl = "http://<your-ip-address>:8080/video";
+
 export default function App() {
   // --- State ---
   const [status, setStatus] = useState<SystemStatus>(SystemStatus.NORMAL);
@@ -288,8 +290,12 @@ export default function App() {
         <div className="lg:col-span-5 flex flex-col gap-6">
           
           {/* Media Feed */}
-          <div className="h-80">
-            <MediaPanel status={status} isSimulatingCapture={isSimulatingCapture} />
+          <div className="h-auto min-h-[400px]">
+            <MediaPanel 
+              status={status} 
+              isSimulatingCapture={isSimulatingCapture}
+              streamUrl={streamUrl}
+            />
           </div>
 
           {/* AI Analysis Result */}

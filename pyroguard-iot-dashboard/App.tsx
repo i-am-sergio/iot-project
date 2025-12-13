@@ -22,6 +22,7 @@ import {
   Flame,
   CloudFog
 } from 'lucide-react';
+import { connectToSensors, disconnectSensors } from "./services/sensorsService";
 
 export default function App() {
   // --- State ---
@@ -33,6 +34,7 @@ export default function App() {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [simulateFireMode, setSimulateFireMode] = useState(false);
 
+  const [temperature, setTemperature] = useState(0);
   // Refs for logic that shouldn't trigger re-renders or dependencies issues
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -87,6 +89,15 @@ export default function App() {
     return () => clearInterval(interval);
   }, [simulateFireMode, thresholds]);
 
+  useEffect(() => {
+    connectToSensors((sensor) => {
+      console.log("MQTT payload:", sensor);
+      setTemperature(sensor.temperature);
+    });
+
+    return () => disconnectSensors();
+  }, []);
+  
   // --- Core Logic Flows ---
 
   const triggerRiskProtocol = (data: SensorData) => {
@@ -194,7 +205,8 @@ export default function App() {
                 <span className="text-xs uppercase font-bold">Temperature</span>
               </div>
               <div className={`text-3xl font-mono font-bold ${latestData.temperature > thresholds.temperature ? 'text-red-400' : 'text-white'}`}>
-                {latestData.temperature.toFixed(1)}°C
+                {/* {latestData.temperature.toFixed(1)}°C */}
+                {temperature}°C
               </div>
               <div className="text-xs text-slate-500 mt-1">Threshold: &gt;{thresholds.temperature}°C</div>
             </div>

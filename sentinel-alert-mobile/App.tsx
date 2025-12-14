@@ -20,6 +20,33 @@ import { mqttService } from "./services/mqttService";
 import { DEFAULT_CONFIG, RECORDING_DURATION_MS } from "./constants";
 import { AppStatus, MqttConnectionState } from "./types";
 
+const WAV_RECORDING_OPTIONS: any = {
+  isMeteringEnabled: true,
+  android: {
+    extension: ".m4a",
+    outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+    audioEncoder: Audio.AndroidAudioEncoder.AAC,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 128000,
+  },
+  ios: {
+    extension: ".m4a",
+    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+    audioQuality: Audio.IOSAudioQuality.MAX,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 128000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: {
+    mimeType: "audio/wav",
+    bitsPerSecond: 128000,
+  },
+};
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -133,9 +160,7 @@ export default function App() {
 
       // 2. Grabar Audio (3 segundos)
       const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      await recording.prepareToRecordAsync(WAV_RECORDING_OPTIONS);
 
       audioRecordingRef.current = recording;
       await recording.startAsync();
@@ -184,8 +209,8 @@ export default function App() {
       // @ts-ignore
       formData.append("audio", {
         uri: audioUri,
-        name: "evidence_audio.wav",
-        type: "audio/wav",
+        name: "evidence_audio.m4a",
+        type: "audio/mp4",
       });
 
       // Metadatos extra

@@ -2,6 +2,7 @@ import os
 import numpy as np
 import librosa
 import tempfile
+import subprocess
 from typing import BinaryIO
 from PIL import Image
 from tensorflow.keras.models import load_model
@@ -23,7 +24,6 @@ class KerasDetectorAdapter(IDetector):
         self._warmup_gpu()
 
     def _warmup_gpu(self):
-        """Ejecuta una predicción dummy para inicializar grafos de TF"""
         try:
             if self.model_vision:
                 dummy_img = np.zeros((1, 224, 224, 3), dtype=np.float32)
@@ -49,24 +49,49 @@ class KerasDetectorAdapter(IDetector):
             return None
 
     def _procesar_audio_bytes(self, audio_file: BinaryIO):
+        path_input = None
+        path_wav = None
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            if hasattr(audio_file, 'seek'):
+                audio_file.seek(0)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as tmp:
                 tmp.write(audio_file.read())
-                tmp_path = tmp.name
-            
-            audio, sr = librosa.load(tmp_path, duration=3.0, sr=22050)
-            os.unlink(tmp_path)
-            target_len = int(sr * 3)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                path_input = tmp.name
+            path_wav = path_input.replace(".m4a", ".wav")
+            command = [
+                "ffmpeg", 
+                "-y",              
+                "-i", path_input,   
+                "-vn",             
+                "-ac", "1",        
+                "-ar", "22050",     
+                "-c:a", "pcm_s16le", 
+                path_wav           
+            ]
+            subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            audio, sr = librosa.load(path_wav, sr=22050)
+            if os.path.exists(path_input): os.unlink(path_input)
+            if os.path.exists(path_wav): os.unlink(path_wav)
+            max_val = np.max(np.abs(audio))
+            if max_val == 0:
+                print("Advertencia: Audio vacío o silencio absoluto después de conversión.")
+                return None
+            else:
+                audio = audio / (max_val + 1e-6)
+            target_len = int(22050 * 3)
             if len(audio) < target_len:
                 audio = np.pad(audio, (0, target_len - len(audio)), 'constant')
             elif len(audio) > target_len:
                 audio = audio[:target_len]
-            
-            mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=40)
+            mfccs = librosa.feature.mfcc(y=audio, sr=22050, n_mfcc=40)
             mfccs_processed = np.mean(mfccs.T, axis=0)
             return np.expand_dims(mfccs_processed, axis=0)
         except Exception as e:
             print(f"Error procesando audio: {e}")
+            if path_input and os.path.exists(path_input): os.unlink(path_input)
+            if path_wav and os.path.exists(path_wav): os.unlink(path_wav)
             return None
 
     def detect(self, image_file: BinaryIO, audio_file: BinaryIO) -> DetectionResult:

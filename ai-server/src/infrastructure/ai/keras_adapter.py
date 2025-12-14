@@ -111,7 +111,7 @@ class KerasDetectorAdapter(IDetector):
         is_fire = False
         val_type = VerificationType.SAFE
 
-        if vision_score > 0.8:
+        if vision_score > 0.98:
             val_type = VerificationType.FIRE_VISUAL
             is_fire = True
         elif audio_score > 0.9:

@@ -1,85 +1,153 @@
-require('dotenv').config();
-const mqtt = require('mqtt');
-const nodemailer = require('nodemailer');
 const express = require('express');
-const twilio = require('twilio'); // Importamos Twilio
+const axios = require('axios');
+const nodemailer = require('nodemailer');
+const cors = require('cors');
+const mqtt = require('mqtt');
 
-// --- CONFIGURACIÓN ---
 const app = express();
-const PORT = process.env.PORT || 5004; // Cambiado a 5004 según tu diagrama
+app.use(express.json());
+app.use(cors());
 
-// Cliente Twilio
-const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
+// ==========================================
+// 1. CONFIGURACIÓN DE CREDENCIALES
+// ==========================================
 
-// Cliente Correo (Nodemailer)
+// --- WHATSAPP (TextMeBot) ---
+const WSP_NUMBER = "+51981140133";
+const WSP_APIKEY = "A5LURTxK46hq";
+
+// --- TELEGRAM ---
+const TELEGRAM_TOKEN = "8375671659:AAFS8TXBm7Wq3uNmP8F5uHmzNlf291ReGOE";
+const TELEGRAM_CHAT_ID = "7244887813";
+
+// --- GMAIL (Nodemailer) ---
+const CORREO_USER = "martinezchoque569@gmail.com";
+const CORREO_PASS = "tqroqravysqrtfyq"; // Sin espacios
+
+// Configuración del transporte de correo
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user: CORREO_USER,
+        pass: CORREO_PASS
     }
 });
 
-// --- FUNCIONES DE ALERTA ---
+// ==========================================
+// 2. FUNCIONES DE ENVÍO
+// ==========================================
 
-// 1. Enviar Correo
-const enviarCorreo = async () => {
+async function enviarAlerta(mensaje) {
+    console.log("\n🚨 --- INICIANDO PROTOCOLO DE ALERTA ---");
+
+    // --- A. ENVIAR WHATSAPP ---
+    try {
+        const msgEncoded = encodeURIComponent(mensaje);
+        const urlWsp = `http://api.textmebot.com/send.php?recipient=${WSP_NUMBER}&apikey=${WSP_APIKEY}&text=${msgEncoded}&json=yes`;
+
+        await axios.get(urlWsp);
+        console.log("✅ WhatsApp enviado correctamente");
+    } catch (error) {
+        console.log("❌ Error enviando WhatsApp:", error.message);
+    }
+
+    // --- B. ENVIAR TELEGRAM ( Usando GET ) ---
+    try {
+        const msgEncoded = encodeURIComponent(mensaje);
+        const urlTg = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${msgEncoded}`;
+
+        await axios.get(urlTg);
+        console.log("✅ Telegram enviado correctamente");
+    } catch (error) {
+        // Muestra detalles si falla
+        console.log("❌ Error enviando Telegram:", error.response ? error.response.data : error.message);
+    }
+
+    // --- C. ENVIAR CORREO ---
     try {
         await transporter.sendMail({
-            from: process.env.EMAIL_USER,
-            to: process.env.EMAIL_DESTINO,
-            subject: '⚠️ ALERTA: FUEGO DETECTADO',
-            text: 'El sistema ha detectado un incendio con alta probabilidad. Revise la cámara.'
+            from: `"Alerta Sensor" <${CORREO_USER}>`,
+            to: CORREO_USER, // Se envía a ti mismo
+            subject: '🔥 PELIGRO: ALERTA DEL SENSOR',
+            text: mensaje
         });
-        console.log('📧 Correo enviado.');
+        console.log("✅ Correo enviado correctamente");
     } catch (error) {
-        console.error('❌ Error enviando correo:', error);
+        console.log("❌ Error enviando Correo:", error.message);
     }
-};
+    console.log("------------------------------------------\n");
+}
 
-// 2. Enviar WhatsApp
-const enviarWhatsApp = async () => {
-    try {
-        await twilioClient.messages.create({
-            body: '🔥 ¡ALERTA CRÍTICA! Se ha detectado un incendio en el hato. Por favor verifique inmediatamente.',
-            from: process.env.TWILIO_WHATSAPP_NUMBER, // El número del Sandbox de Twilio
-            to: process.env.MY_WHATSAPP_NUMBER       // Tu número personal (con código de país)
-        });
-        console.log('📱 WhatsApp enviado.');
-    } catch (error) {
-        console.error('❌ Error enviando WhatsApp:', error);
+// ==========================================
+// 3. RUTAS DEL SERVIDOR
+// ==========================================
+
+app.post('/sensor-data', (req, res) => {
+    // Recibimos los datos (Simulados o del Sensor Real)
+    const { temperatura, humo } = req.body;
+
+    console.log(`📡 Dato recibido -> Temp: ${temperatura}°C | Humo: ${humo}%`);
+
+    // LÓGICA DE ALERTA: Si supera 40°C o 50% de humo
+    if (temperatura > 40 || humo > 50) {
+        const mensajeAlerta = `PELIGRO DETECTADO:\nTemperatura: ${temperatura}°C\nNivel de Humo: ${humo}%`;
+
+        // Disparamos las alertas
+        enviarAlerta(mensajeAlerta);
     }
-};
 
-// --- SERVIDOR Y MQTT ---
-
-app.get('/', (req, res) => res.send('Alert-Server Activo (Email + WhatsApp)'));
-
-app.listen(PORT, () => console.log(`✅ Alert-Server corriendo en puerto ${PORT}`));
-
-const client = mqtt.connect(process.env.MQTT_BROKER || 'mqtt://test.mosquitto.org');
-
-client.on('connect', () => {
-    console.log('🔌 Conectado a MQTT');
-    client.subscribe('verifications');
+    res.send({ status: 'ok', message: 'Datos procesados' });
 });
 
-client.on('message', (topic, message) => {
-    if (topic === 'verifications') {
+// ==========================================
+// 4. CLIENTE MQTT
+// ==========================================
+
+const MQTT_BROKER = "mqtt://34.71.123.19:1883";
+const MQTT_TOPIC = "verifications";
+
+console.log("conectando al MQTT...");
+const client = mqtt.connect(MQTT_BROKER);
+
+client.on("connect", () => {
+    console.log("✅ Conectado al Broker MQTT");
+    client.subscribe(MQTT_TOPIC, (err) => {
+        if (!err) {
+            console.log(`📡 Suscrito al topic '${MQTT_TOPIC}'`);
+        } else {
+            console.error("❌ Error al suscribirse:", err);
+        }
+    });
+});
+
+client.on("message", (topic, message) => {
+    if (topic === MQTT_TOPIC) {
         try {
             const data = JSON.parse(message.toString());
-            console.log('📥 Dato recibido:', data);
+            console.log("📩 Mensaje recibido MQTT:", data);
 
-            // Si la predicción es "yes"
-            if (data.prediction && data.prediction.toLowerCase() === 'yes') {
-                console.log('🚨 ¡PROTOCOLOS DE ALERTA INICIADOS!');
+            // Verificar si es una alerta de incendio
+            if (data.is_fire === true) {
+                const tipoValidacion = data.validation_type || "Desconocido";
+                const confFoto = data.photo_confidence ? (data.photo_confidence * 100).toFixed(1) : "N/A";
+                const confAudio = data.audio_confidence ? (data.audio_confidence * 100).toFixed(1) : "N/A";
 
-                // Ejecutamos ambas alertas en paralelo
-                enviarCorreo();
-                enviarWhatsApp();
+                const mensajeAlerta = `🔥 ALERTA DE INCENDIO CONFIRMADA 🔥\n\n` +
+                    `Tipo: ${tipoValidacion}\n` +
+                    `Confianza Visual: ${confFoto}%\n` +
+                    `Confianza Audio: ${confAudio}%\n` +
+                    `Mensaje: Se ha detectado un posible incendio.`;
+
+                enviarAlerta(mensajeAlerta);
             }
-        } catch (e) {
-            console.error('Data no válida');
+        } catch (error) {
+            console.error("❌ Error procesando mensaje MQTT:", error.message);
         }
     }
+});
+
+// Arrancar el servidor
+app.listen(5003, () => {
+    console.log('🚀 Servidor de alertas corriendo en el puerto 5003');
+    console.log('Esperando datos...');
 });

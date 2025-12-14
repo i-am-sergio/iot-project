@@ -13,16 +13,16 @@ app.use(cors());
 // ==========================================
 
 // --- WHATSAPP (TextMeBot) ---
-const WSP_NUMBER = "+51981140133";
-const WSP_APIKEY = "A5LURTxK46hq";
+const WSP_NUMBER = process.env.WSP_NUMBER;
+const WSP_APIKEY = process.env.WSP_APIKEY;
 
 // --- TELEGRAM ---
-const TELEGRAM_TOKEN = "8375671659:AAFS8TXBm7Wq3uNmP8F5uHmzNlf291ReGOE";
-const TELEGRAM_CHAT_ID = "7244887813";
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 // --- GMAIL (Nodemailer) ---
-const CORREO_USER = "martinezchoque569@gmail.com";
-const CORREO_PASS = "tqroqravysqrtfyq"; // Sin espacios
+const CORREO_USER = process.env.CORREO_USER;
+const CORREO_PASS = process.env.CORREO_PASS;
 
 // Configuración del transporte de correo
 const transporter = nodemailer.createTransport({

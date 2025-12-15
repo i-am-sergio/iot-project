@@ -6,8 +6,8 @@ export const DEFAULT_THRESHOLDS = {
 export const MAX_HISTORY_POINTS = 30; // Seconds of data to keep on chart
 
 // Placeholders for simulated media
-export const IMG_PLACEHOLDER_NORMAL = "https://picsum.photos/id/10/800/600"; // Nature/Forest
-export const IMG_PLACEHOLDER_FIRE = "https://picsum.photos/id/56/800/600"; // Fire/Light related (approx)
+export const IMG_PLACEHOLDER_NORMAL = "https://picsum.photos/id/10/1200/600"; // Nature/Forest
+export const IMG_PLACEHOLDER_FIRE = "https://picsum.photos/id/56/1200/600"; // Fire/Light related (approx)
 
 // Using a newer model for reasoning
 export const GEMINI_MODEL = "gemini-2.5-flash";
